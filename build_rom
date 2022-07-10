@@ -1,0 +1,54 @@
+#!/bin/bash
+
+#env setup
+df -h
+free -h
+nproc
+cat /etc/os*
+env
+# Git info
+git config --global user.email "ShazuxD7@gmail.com"
+git config --global user.name "ShazuxD7"
+git config --global color.ui false
+
+# ccache download
+cd /tmp
+URL=https://eliteflix.ashish-sharma-legend.workers.dev/4:/ccache.tar.gz
+time aria2c $URL -x16 -s50
+time tar xf ccache.tar.gz
+mkdir -p ~/.config/rclone
+echo "$conf" > ~/.config/rclone/rclone.conf
+
+# sync
+mkdir -p rom &&cd rom
+
+repo init -q --depth=1 -u https://github.com/ShazuxD7/manifest -b 11 -g default,-device,-mips,-darwin,-notdefault
+git clone https://github.com/ShazuxD7/local_manifest -b derp .repo/local_manifests
+repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune --force-sync -j 30 || repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune --force-sync -j 8
+
+
+# build
+source build/envsetup.sh
+
+lunch derp_RMX1801-user
+export CCACHE_DIR=/tmp/ccache
+export CCACHE_EXEC=$(which ccache)
+export USE_CCACHE=1
+ccache -M 20G
+ccache -o compression=true
+ccache -z
+export KBUILD_BUILD_USER="ShazuxD7"
+export KBUILD_BUILD_HOST="Ci-Labs"
+mka derp
+
+cd out/target/product/RMX1801
+rclone copy Derp*.zip shazuxd:ci -P
+cd /tmp
+com ()
+{
+    tar --use-compress-program="pigz -k -$2 " -cf $1.tar.gz $1
+}
+
+rm -rf ccache.tar.gz
+time com ccache 1
+rclone copy ccache.tar.gz shazuxd:ci -P
